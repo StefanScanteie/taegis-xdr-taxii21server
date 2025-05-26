@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, redirect, url_for
+from flask import Flask, request, render_template, redirect, url_for, jsonify, make_response
 from flask_httpauth import HTTPBasicAuth
 from werkzeug.security import generate_password_hash, check_password_hash
 from stix2 import Indicator
@@ -12,7 +12,7 @@ from io import BytesIO
 app = Flask(__name__)
 auth = HTTPBasicAuth()
 
-# Basic Auth credentials
+# Authentication credentials
 users = {
     "admin": generate_password_hash("adminpass")
 }
@@ -51,8 +51,6 @@ def index():
             for _, row in df.iterrows():
                 raw = str(row["value"]).strip().replace("[.]", ".")
                 desc = str(row.get("Threat Desc", "Excel Upload"))
-
-                # Safe date parse with fallback
                 try:
                     ts = pd.to_datetime(row["Published Date"]).isoformat() + "Z"
                 except Exception:
@@ -67,36 +65,34 @@ def index():
                     valid_from=ts
                 ))
 
+            current = {"objects": []}
             if os.path.exists(DATA_PATH):
                 with open(DATA_PATH) as f:
                     current = json.load(f)
-            else:
-                current = {"objects": []}
 
             current["objects"].extend(json.loads(i.serialize()) for i in indicators)
 
             with open(DATA_PATH, "w") as f:
                 json.dump(current, f)
+
             return redirect(url_for("index"))
 
-        # Manual entry fallback
         ioc_value = request.form.get("ioc", "").strip()
         threat = request.form.get("threat", "Manual Entry")
         if ioc_value:
             ioc_type, pattern = classify_ioc(ioc_value)
             indicator = Indicator(
                 name=f"IOC: {ioc_value}",
+                description=threat,
                 pattern=pattern,
                 pattern_type="stix",
-                valid_from=datetime.utcnow().isoformat() + "Z",
-                description=threat
+                valid_from=datetime.utcnow().isoformat() + "Z"
             )
 
+            current = {"objects": []}
             if os.path.exists(DATA_PATH):
                 with open(DATA_PATH) as f:
                     current = json.load(f)
-            else:
-                current = {"objects": []}
 
             current["objects"].append(json.loads(indicator.serialize()))
 
@@ -122,19 +118,31 @@ def delete_ioc(ioc_id):
             json.dump(data, f)
     return redirect(url_for("index"))
 
+# TAXII Discovery
 @app.route("/taxii2/", methods=["GET"])
 def discovery():
-    return {
+    response = {
         "title": "Custom TAXII 2.1 Server",
         "description": "Web-enabled threat intel server",
-        "default": "http://localhost:5050/taxii2/root/"
+        "api_roots": [
+            "https://carried-lonely-design-bent.trycloudflare.com/taxii2/root/"
+        ]
     }
+    r = make_response(jsonify(response))
+    r.headers["Content-Type"] = "application/taxii+json;version=2.1; charset=UTF-8"
+    return r
 
+# API Root Info
 @app.route("/taxii2/root/", methods=["GET"])
 def api_root():
-    return {
+    response = {
+        "id": "api-root-001",
         "title": "Default API Root",
         "description": "IOC collection",
+        "versions": ["taxii-2.1"],
+        "supported_stix_versions": ["2.1"],
+        "max_content_length": 10485760,
+        "is_read_only": False,
         "collections": [
             {
                 "id": "default",
@@ -144,7 +152,28 @@ def api_root():
             }
         ]
     }
+    r = make_response(jsonify(response))
+    r.headers["Content-Type"] = "application/taxii+json;version=2.1; charset=UTF-8"
+    return r
 
+# List Collections
+@app.route("/taxii2/root/collections/", methods=["GET"])
+def list_collections():
+    response = {
+        "collections": [
+            {
+                "id": "default",
+                "title": "IOC Collection",
+                "can_read": True,
+                "can_write": True
+            }
+        ]
+    }
+    r = make_response(jsonify(response))
+    r.headers["Content-Type"] = "application/taxii+json;version=2.1; charset=UTF-8"
+    return r
+
+# STIX objects access
 @app.route("/taxii2/root/collections/default/objects/", methods=["GET", "POST"])
 def taxii_objects():
     if request.method == "GET":
@@ -155,11 +184,10 @@ def taxii_objects():
 
     if request.method == "POST":
         data = request.get_json()
+        current = {"objects": []}
         if os.path.exists(DATA_PATH):
             with open(DATA_PATH) as f:
                 current = json.load(f)
-        else:
-            current = {"objects": []}
         current["objects"].extend(data["objects"])
         with open(DATA_PATH, "w") as f:
             json.dump(current, f)
