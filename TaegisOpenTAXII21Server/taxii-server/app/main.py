@@ -138,19 +138,11 @@ def api_root():
     response = {
         "id": "api-root-001",
         "title": "Default API Root",
-        "description": "IOC collection",
+        "description": "Default API Root",
         "versions": ["taxii-2.1"],
         "supported_stix_versions": ["2.1"],
         "max_content_length": 10485760,
         "is_read_only": False,
-        "collections": [
-            {
-                "id": "default",
-                "title": "IOC Collection",
-                "can_read": True,
-                "can_write": True
-            }
-        ]
     }
     r = make_response(jsonify(response))
     r.headers["Content-Type"] = "application/taxii+json;version=2.1; charset=UTF-8"
@@ -165,7 +157,8 @@ def list_collections():
                 "id": "default",
                 "title": "IOC Collection",
                 "can_read": True,
-                "can_write": True
+                "can_write": True,
+                "supported_stix_versions": ["2.1"]
             }
         ]
     }
