@@ -9,6 +9,7 @@ This project is a **fully functional TAXII 2.1 server** that lets you:
 - 🧹 Delete IOCs from the web UI
 - 🎨 Use a modern Tailwind-styled frontend
 - ⚡ Serve data to external tools like **Taegis XDR**
+- 🌐 Access remotely using Cloudflare Tunnel (HTTPS!)
 
 ---
 
@@ -23,6 +24,7 @@ This project is a **fully functional TAXII 2.1 server** that lets you:
 | ✅ TAXII 2.1 API                 | `/taxii2/` + `/taxii2/root/collections/...`     |
 | ✅ Basic Auth                    | Protects the web UI (`admin:adminpass`)         |
 | ✅ Delete Button                 | Remove IOCs on demand                           |
+| ✅ Cloudflare Tunnel             | Secure public access without opening ports      |
 
 ---
 
@@ -101,6 +103,36 @@ Upload `.xlsx` files containing a table like:
   ```
 
 All data is saved to: `data/collection.json` in STIX 2.1 format.
+
+---
+
+## 🌐 Expose to Internet (Securely) with Cloudflare Tunnel
+
+Use Cloudflare Tunnel to securely expose your local TAXII server to the internet — great for integration with XDRs like Taegis.
+
+### ✅ Steps:
+
+1. **Install Cloudflare Tunnel:**
+   ```bash
+   brew install cloudflared
+   ```
+
+2. **Start the tunnel:**
+   ```bash
+   cloudflared tunnel --url http://localhost:5050
+   ```
+
+3. You'll get a URL like:
+   ```
+   https://your-taxii-server.trycloudflare.com
+   ```
+
+4. ✅ Use this URL to access:
+   - Web UI
+   - `https://.../taxii2/` discovery
+   - `https://.../taxii2/root/collections/default/objects/`
+
+> No port forwarding or static IP required. Your basic auth still applies!
 
 ---
 
