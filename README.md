@@ -1,30 +1,25 @@
 
-# 📦 TAXII 2.1 Threat Intel Server with Web UI
+# 🛡️ TAXII 2.1 Threat Intel Server (STIX 2.1 Compatible)
 
-This project is a **fully functional TAXII 2.1 server** that lets you:
-
-- 🔐 Submit IOCs via web form (authenticated)
-- 📤 Upload Excel files (`.xlsx`) to bulk import IOCs
-- 📄 Auto-generate STIX 2.1 Indicator objects
-- 🧹 Delete IOCs from the web UI
-- 🎨 Use a modern Tailwind-styled frontend
-- ⚡ Serve data to external tools like **Taegis XDR**
-- 🌐 Access remotely using Cloudflare Tunnel (HTTPS!)
+This is a fully operational **TAXII 2.1 server with STIX 2.1 support**, designed for:
+- Manual or bulk IOC ingestion (Excel `.xlsx`)
+- Indicator sharing over the TAXII protocol
+- Web UI for IOC management
+- ✅ Verified integration with **Secureworks Taegis XDR**
 
 ---
 
-## 🖼️ Features
+## 🎯 Features
 
-| Feature                          | Description                                      |
-|----------------------------------|--------------------------------------------------|
-| ✅ Web UI                        | For submitting and viewing IOCs                 |
-| ✅ Excel Upload (`.xlsx`)        | Supports NCSC-style IOC files                   |
-| ✅ IOC Classification            | IPs, domains, hashes, URLs                      |
-| ✅ STIX 2.1 Conversion            | Valid indicators with correct patterns          |
-| ✅ TAXII 2.1 API                 | `/taxii2/` + `/taxii2/root/collections/...`     |
-| ✅ Basic Auth                    | Protects the web UI (`admin:adminpass`)         |
-| ✅ Delete Button                 | Remove IOCs on demand                           |
-| ✅ Cloudflare Tunnel             | Secure public access without opening ports      |
+| Feature                    | Description                                      |
+|----------------------------|--------------------------------------------------|
+| ✅ Web UI                 | Add/delete IOCs with basic auth                  |
+| ✅ Excel Upload           | `.xlsx` import for bulk IOC input                |
+| ✅ IOC Support            | IPs, domains, URLs, hashes (MD5/SHA1/SHA256)     |
+| ✅ STIX 2.1 Generation     | Valid Indicator objects                          |
+| ✅ TAXII 2.1 Endpoints     | Compliant and authenticated                      |
+| ✅ Cloudflare Tunnel       | HTTPS access with no open ports                  |
+| ✅ Taegis XDR Compatible   | Fully validated & integrated                     |
 
 ---
 
@@ -33,18 +28,19 @@ This project is a **fully functional TAXII 2.1 server** that lets you:
 ```
 taxii-server/
 ├── app/
-│   ├── main.py               # Flask + STIX + TAXII logic
+│   ├── main.py               # Main Flask app
 │   ├── templates/
-│   │   └── index.html        # Tailwind UI
+│   │   └── index.html        # Tailwind-based UI
 │   ├── requirements.txt
 │   └── Dockerfile
-├── data/                     # IOC storage (STIX bundle JSON)
+├── data/                     # STIX bundle storage
 ├── docker-compose.yml
+├── README.md
 ```
 
 ---
 
-## 🚀 How to Run It
+## 🚀 How to Run
 
 ### 1. Clone or Download
 
@@ -53,112 +49,110 @@ git clone <your-repo-url>
 cd taxii-server
 ```
 
-Or just download the folder if you built locally.
-
 ---
 
-### 2. Build and Run
+### 2. Start with Docker
 
 ```bash
 docker-compose up -d --build
 ```
 
-Open: [http://localhost:5050](http://localhost:5050)
-
-🔐 Login:  
-- **Username:** `admin`  
-- **Password:** `adminpass`
+Web UI: [http://localhost:5050](http://localhost:5050)  
+Login: `admin` / `adminpass`
 
 ---
 
-### 3. Submit IOCs
+### 3. Use the Web UI
 
-#### ✅ Web Form (Manual Entry)
-
-- IPs (e.g. `192.168.0.1`)
-- Domains (e.g. `malicious.com`)
-- Hashes (MD5, SHA-1, SHA-256)
-- URLs (e.g. `http://bad.site/path`)
-
-You can obfuscate with `[.]` — it will be sanitized.
-
-#### ✅ Excel Upload
-
-Upload `.xlsx` files containing a table like:
-
-| value             | Threat Desc           | Published Date      |
-|------------------|------------------------|---------------------|
-| 8.8.8.8          | test IP                | 2025-05-26 14:30:00 |
-| bad[.]com        | phishing domain        | 2025-05-25 09:00:00 |
+- Submit IOCs manually
+- Upload Excel files (`.xlsx`) with `value`, `Threat Desc`, and `Published Date`
+- Delete old IOCs on demand
 
 ---
 
-## 🔁 TAXII 2.1 API Endpoints
+## 📤 TAXII 2.1 API
 
-- Discovery: `http://localhost:5050/taxii2/`
-- API Root: `http://localhost:5050/taxii2/root/`
-- Objects:
-  ```http
-  GET/POST http://localhost:5050/taxii2/root/collections/default/objects/
-  ```
+| Endpoint                              | Description                |
+|--------------------------------------|----------------------------|
+| `/taxii2/`                            | Discovery endpoint         |
+| `/taxii2/root/`                       | API root with STIX support |
+| `/taxii2/root/collections/`          | Lists collections          |
+| `/taxii2/root/collections/default/objects/` | Access/submit objects     |
 
-All data is saved to: `data/collection.json` in STIX 2.1 format.
+All endpoints respond with:
 
----
-
-## 🌐 Expose to Internet (Securely) with Cloudflare Tunnel
-
-Use Cloudflare Tunnel to securely expose your local TAXII server to the internet — great for integration with XDRs like Taegis.
-
-### ✅ Steps:
-
-1. **Install Cloudflare Tunnel:**
-   ```bash
-   brew install cloudflared
-   ```
-
-2. **Start the tunnel:**
-   ```bash
-   cloudflared tunnel --url http://localhost:5050
-   ```
-
-3. You'll get a URL like:
-   ```
-   https://your-taxii-server.trycloudflare.com
-   ```
-
-4. ✅ Use this URL to access:
-   - Web UI
-   - `https://.../taxii2/` discovery
-   - `https://.../taxii2/root/collections/default/objects/`
-
-> No port forwarding or static IP required. Your basic auth still applies!
+```
+Content-Type: application/taxii+json;version=2.1; charset=UTF-8
+```
 
 ---
 
-## 🧪 Example STIX Pattern Detection
+## ✅ Taegis XDR Integration
 
-| Input                    | Pattern Type     |
-|-------------------------|------------------|
-| `192.0.2.1`             | ipv4-addr        |
-| `evil[.]site`           | domain-name      |
-| `http://1.2.3.4/abc`    | url              |
-| `8650be1565...`         | file:hashes.MD5  |
+**Required settings:**
 
----
+| Field               | Value                                                             |
+|---------------------|-------------------------------------------------------------------|
+| Root URL            | `https://<your-tunnel>.trycloudflare.com/taxii2/root/`           |
+| Collection ID       | `default`                                                        |
+| Username / Password | `admin` / `adminpass`                                            |
 
-## 🧼 Tips
-
-- Ensure Excel files have no empty rows at the end
-- "Threat Desc" is optional, but improves context
-- Missing dates default to `datetime.utcnow()`
+**Notes:**
+- Must include: `versions: ["application/taxii+json;version=2.1"]`
+- Must declare: `supported_stix_versions: ["2.1"]`
+- Collections must be provided at `/collections/`, not embedded in `/root/`
 
 ---
 
-## ✅ Coming Soon (Optional Add-ons)
+## 🌐 Public Access (Cloudflare Tunnel)
 
-- CSV upload support
-- Multi-user authentication
-- IOC search + filtering
-- IOC expiration logic
-- Export STIX bundles
+```bash
+brew install cloudflared
+cloudflared tunnel --url http://localhost:5050
+```
+
+Copy the public HTTPS link. This makes your TAXII server securely accessible from anywhere.
+
+---
+
+## 🧪 Validate With Python Client
+
+```bash
+pip install taxii2-client
+```
+
+```python
+from taxii2client.v21 import Server
+from requests.auth import HTTPBasicAuth
+
+server = Server(
+  'https://your-tunnel.trycloudflare.com/taxii2/',
+  auth=HTTPBasicAuth('admin', 'adminpass'),
+  verify=False
+)
+api_root = server.api_roots[0]
+for c in api_root.collections:
+    print(c.title, c.id)
+```
+
+---
+
+## 🛠️ Next Ideas
+
+- CSV upload
+- Multiple collections
+- STIX bundle export
+- Dark mode UI
+- Stats dashboard
+- Feed notification webhook
+
+---
+
+## 🙌 Credit
+
+Built with ❤️ by Ștefan, with guidance from OpenAI ChatGPT.
+
+Validated by:
+- `curl`
+- `taxii2-client`
+- ✅ **Secureworks Taegis XDR**
