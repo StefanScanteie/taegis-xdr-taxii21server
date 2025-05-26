@@ -155,4 +155,4 @@ Built with ❤️ by Ștefan, with guidance from OpenAI ChatGPT.
 Validated by:
 - `curl`
 - `taxii2-client`
-- ✅ **Secureworks Taegis XDR**
+- **Secureworks Taegis XDR**
