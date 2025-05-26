@@ -1,7 +1,0 @@
-flask
-flask-httpauth
-flask-restful
-jinja2
-stix2
-pandas
-openpyxl
