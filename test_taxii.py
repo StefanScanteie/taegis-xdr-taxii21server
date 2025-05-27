@@ -3,7 +3,7 @@ from requests.auth import HTTPBasicAuth
 
 server = Server(
     'https://carried-lonely-design-bent.trycloudflare.com/taxii2/',
-    auth=HTTPBasicAuth('admin', 'adminpass'),
+    auth=HTTPBasicAuth('admin', 'your-password'),
     verify=False  # Set to True if using HTTPS with valid cert
 )
 
