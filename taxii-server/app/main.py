@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, redirect, url_for, jsonify, make_response
+from flask import Flask, request, render_template, redirect, url_for, jsonify, make_response, flash
 from flask_httpauth import HTTPBasicAuth
 from werkzeug.security import generate_password_hash, check_password_hash
 from stix2 import Indicator
@@ -8,14 +8,25 @@ import os
 import re
 import pandas as pd
 from io import BytesIO
+import logging
+from config import load_config, setup_admin_password, change_admin_password
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+app.config['SERVER_NAME'] = 'carried-lonely-design-bent.trycloudflare.com'  # Set the server name for URL generation
+app.config['PREFERRED_URL_SCHEME'] = 'https'  # Force HTTPS
+app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'dev-key-please-change')  # Required for flash messages
 auth = HTTPBasicAuth()
 
-# Authentication credentials
-users = {
-    "admin": generate_password_hash("adminpass")
-}
+# Load users from config
+users = load_config().get("users", {})
+
+# If no users exist and ADMIN_PASSWORD is set, create admin user
+if not users and os.environ.get("ADMIN_PASSWORD"):
+    users = setup_admin_password(os.environ["ADMIN_PASSWORD"])
 
 DATA_PATH = "data/collection.json"
 
@@ -118,6 +129,43 @@ def delete_ioc(ioc_id):
             json.dump(data, f)
     return redirect(url_for("index"))
 
+@app.route("/change-password", methods=["GET", "POST"])
+@auth.login_required
+def change_password():
+    try:
+        if request.method == "POST":
+            current_password = request.form.get("current_password")
+            new_password = request.form.get("new_password")
+            confirm_password = request.form.get("confirm_password")
+            
+            logger.debug(f"Password change attempt for user: {auth.current_user()}")
+            
+            if not all([current_password, new_password, confirm_password]):
+                flash("All fields are required", "error")
+                return redirect(url_for("change_password"))
+                
+            if new_password != confirm_password:
+                flash("New passwords do not match", "error")
+                return redirect(url_for("change_password"))
+                
+            success, message = change_admin_password(current_password, new_password)
+            if success:
+                # Update the in-memory users dictionary
+                global users
+                users = load_config().get("users", {})
+                logger.info(f"Password successfully changed for user: {auth.current_user()}")
+            else:
+                logger.warning(f"Failed to change password for user: {auth.current_user()}, reason: {message}")
+            
+            flash(message, "success" if success else "error")
+            return redirect(url_for("index"))
+            
+        return render_template("change_password.html")
+    except Exception as e:
+        logger.error(f"Error in change_password route: {str(e)}", exc_info=True)
+        flash("An error occurred while changing the password. Please try again.", "error")
+        return redirect(url_for("index"))
+
 # TAXII Discovery
 @app.route("/taxii2/", methods=["GET"])
 def discovery():
@@ -188,4 +236,10 @@ def taxii_objects():
 
 if __name__ == "__main__":
     os.makedirs("data", exist_ok=True)
+    # Only set SERVER_NAME in production (Cloudflare) environment
+    if os.environ.get('FLASK_ENV') != 'development':
+        app.config['SERVER_NAME'] = 'carried-lonely-design-bent.trycloudflare.com'
+        app.config['PREFERRED_URL_SCHEME'] = 'https'
+    else:
+        app.config['SERVER_NAME'] = None  # Don't set SERVER_NAME in development
     app.run(host="0.0.0.0", port=5000)

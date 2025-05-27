@@ -1,10 +1,17 @@
+version: '3.8'
+
 services:
-  taxii:
-    build: ./app
+  taxii-server:
+    build: 
+      context: ./app
+      dockerfile: Dockerfile
     ports:
       - "5050:5000"
     volumes:
-      - ./data:/app/data
-      - ./config:/app/config
+      - ./data:/app/data:rw
     environment:
-      - FLASK_ENV=development
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}  # Will be empty if not set
+      - FLASK_ENV=production  # Set to production for Cloudflare
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-dev-key-please-change}  # Secret key for session/flash messages
+    user: "${UID:-1000}:${GID:-1000}"  # Run as the current user to avoid permission issues
+    restart: unless-stopped
