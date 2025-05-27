@@ -5,7 +5,7 @@ This is a fully operational **TAXII 2.1 server with STIX 2.1 support**, designed
 - Manual or bulk IOC ingestion (Excel `.xlsx`)
 - Indicator sharing over the TAXII protocol
 - Web UI for IOC management
-- ✅ Verified integration with **Secureworks Taegis XDR**
+- Verified integration with **Secureworks Taegis XDR**
 
 ---
 
@@ -155,4 +155,4 @@ Built with ❤️ by Ștefan, with guidance from OpenAI ChatGPT.
 Validated by:
 - `curl`
 - `taxii2-client`
-- **Secureworks Taegis XDR**
+- `Secureworks Taegis XDR`
