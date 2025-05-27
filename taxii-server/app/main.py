@@ -36,87 +36,121 @@ def verify_password(username, password):
         return username
 
 def classify_ioc(value):
-    value = value.strip().replace("[.]", ".")
+    try:
+        value = value.strip().replace("[.]", ".")
+        logger.debug(f"Classifying IOC: {value}")
 
-    if re.match(r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$", value):
-        return "ipv4-addr", f"[ipv4-addr:value = '{value}']"
-    if re.match(r"^https?://", value):
-        return "url", f"[url:value = '{value}']"
-    if re.match(r"^[a-fA-F0-9]{32}$", value):
-        return "file-md5", f"[file:hashes.MD5 = '{value}']"
-    if re.match(r"^[a-fA-F0-9]{40}$", value):
-        return "file-sha1", f"[file:hashes.SHA-1 = '{value}']"
-    if re.match(r"^[a-fA-F0-9]{64}$", value):
-        return "file-sha256", f"[file:hashes.SHA-256 = '{value}']"
-    return "domain-name", f"[domain-name:value = '{value}']"
+        # IPv4
+        if re.match(r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$", value):
+            return "ipv4-addr", f"[ipv4-addr:value = '{value}']"
+        
+        # URL
+        if re.match(r"^https?://", value):
+            return "url", f"[url:value = '{value}']"
+        
+        # MD5 (32 characters)
+        if re.match(r"^[a-fA-F0-9]{32}$", value):
+            return "file", f"[file:hashes.'MD5' = '{value.lower()}']"
+        
+        # SHA1 (40 characters)
+        if re.match(r"^[a-fA-F0-9]{40}$", value):
+            return "file", f"[file:hashes.'SHA-1' = '{value.lower()}']"
+        
+        # SHA256 (64 characters)
+        if re.match(r"^[a-fA-F0-9]{64}$", value):
+            return "file", f"[file:hashes.'SHA-256' = '{value.lower()}']"
+        
+        # Domain (fallback)
+        return "domain-name", f"[domain-name:value = '{value}']"
+    except Exception as e:
+        logger.error(f"Error classifying IOC {value}: {str(e)}", exc_info=True)
+        raise
 
 @app.route("/", methods=["GET", "POST"])
 @auth.login_required
 def index():
-    if request.method == "POST":
-        if "file" in request.files and request.files["file"].filename.endswith(".xlsx"):
-            file = request.files["file"]
-            df = pd.read_excel(BytesIO(file.read()))
-            indicators = []
+    try:
+        if request.method == "POST":
+            if "file" in request.files and request.files["file"].filename.endswith(".xlsx"):
+                file = request.files["file"]
+                df = pd.read_excel(BytesIO(file.read()))
+                indicators = []
 
-            for _, row in df.iterrows():
-                raw = str(row["value"]).strip().replace("[.]", ".")
-                desc = str(row.get("Threat Desc", "Excel Upload"))
+                for _, row in df.iterrows():
+                    try:
+                        raw = str(row["value"]).strip().replace("[.]", ".")
+                        desc = str(row.get("Threat Desc", "Excel Upload"))
+                        try:
+                            ts = pd.to_datetime(row["Published Date"]).isoformat() + "Z"
+                        except Exception:
+                            ts = datetime.utcnow().isoformat() + "Z"
+
+                        ioc_type, pattern = classify_ioc(raw)
+                        indicators.append(Indicator(
+                            name=f"IOC: {raw}",
+                            description=desc,
+                            pattern=pattern,
+                            pattern_type="stix",
+                            valid_from=ts
+                        ))
+                    except Exception as e:
+                        logger.error(f"Error processing row {row}: {str(e)}", exc_info=True)
+                        flash(f"Error processing IOC: {raw}", "error")
+                        continue
+
+                if indicators:
+                    current = {"objects": []}
+                    if os.path.exists(DATA_PATH):
+                        with open(DATA_PATH) as f:
+                            current = json.load(f)
+
+                    current["objects"].extend(json.loads(i.serialize()) for i in indicators)
+
+                    with open(DATA_PATH, "w") as f:
+                        json.dump(current, f)
+
+                    flash(f"Successfully added {len(indicators)} IOCs", "success")
+                return redirect(url_for("index"))
+
+            ioc_value = request.form.get("ioc", "").strip()
+            threat = request.form.get("threat", "Manual Entry")
+            if ioc_value:
                 try:
-                    ts = pd.to_datetime(row["Published Date"]).isoformat() + "Z"
-                except Exception:
-                    ts = datetime.utcnow().isoformat() + "Z"
+                    ioc_type, pattern = classify_ioc(ioc_value)
+                    indicator = Indicator(
+                        name=f"IOC: {ioc_value}",
+                        description=threat,
+                        pattern=pattern,
+                        pattern_type="stix",
+                        valid_from=datetime.utcnow().isoformat() + "Z"
+                    )
 
-                ioc_type, pattern = classify_ioc(raw)
-                indicators.append(Indicator(
-                    name=f"IOC: {raw}",
-                    description=desc,
-                    pattern=pattern,
-                    pattern_type="stix",
-                    valid_from=ts
-                ))
+                    current = {"objects": []}
+                    if os.path.exists(DATA_PATH):
+                        with open(DATA_PATH) as f:
+                            current = json.load(f)
 
-            current = {"objects": []}
-            if os.path.exists(DATA_PATH):
-                with open(DATA_PATH) as f:
-                    current = json.load(f)
+                    current["objects"].append(json.loads(indicator.serialize()))
 
-            current["objects"].extend(json.loads(i.serialize()) for i in indicators)
+                    with open(DATA_PATH, "w") as f:
+                        json.dump(current, f)
 
-            with open(DATA_PATH, "w") as f:
-                json.dump(current, f)
+                    flash("IOC added successfully", "success")
+                except Exception as e:
+                    logger.error(f"Error adding IOC {ioc_value}: {str(e)}", exc_info=True)
+                    flash(f"Error adding IOC: {str(e)}", "error")
 
             return redirect(url_for("index"))
 
-        ioc_value = request.form.get("ioc", "").strip()
-        threat = request.form.get("threat", "Manual Entry")
-        if ioc_value:
-            ioc_type, pattern = classify_ioc(ioc_value)
-            indicator = Indicator(
-                name=f"IOC: {ioc_value}",
-                description=threat,
-                pattern=pattern,
-                pattern_type="stix",
-                valid_from=datetime.utcnow().isoformat() + "Z"
-            )
-
-            current = {"objects": []}
-            if os.path.exists(DATA_PATH):
-                with open(DATA_PATH) as f:
-                    current = json.load(f)
-
-            current["objects"].append(json.loads(indicator.serialize()))
-
-            with open(DATA_PATH, "w") as f:
-                json.dump(current, f)
-
+        indicators = []
+        if os.path.exists(DATA_PATH):
+            with open(DATA_PATH) as f:
+                indicators = json.load(f)["objects"]
+        return render_template("index.html", indicators=indicators)
+    except Exception as e:
+        logger.error(f"Error in index route: {str(e)}", exc_info=True)
+        flash("An error occurred. Please try again.", "error")
         return redirect(url_for("index"))
-
-    indicators = []
-    if os.path.exists(DATA_PATH):
-        with open(DATA_PATH) as f:
-            indicators = json.load(f)["objects"]
-    return render_template("index.html", indicators=indicators)
 
 @app.route("/delete/<ioc_id>", methods=["POST"])
 @auth.login_required
