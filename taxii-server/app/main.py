@@ -224,7 +224,7 @@ def api_root():
         "versions": ["application/taxii+json;version=2.1"],
         "supported_stix_versions": ["2.1"],
         "max_content_length": 10485760,
-        "is_read_only": False,
+        "is_read_only": True, # This entire API Root is read-only
     }
     r = make_response(jsonify(response))
     r.headers["Content-Type"] = "application/taxii+json;version=2.1; charset=UTF-8"
@@ -238,8 +238,8 @@ def list_collections():
             {
                 "id": "default",
                 "title": "IOC Collection",
-                "can_read": True,
-                "can_write": True,
+                "can_read": True, # Client can download IOCs from this collection
+                "can_write": False, # Client cannot upload new IOCs to this collection
                 "supported_stix_versions": ["2.1"]
             }
         ]
